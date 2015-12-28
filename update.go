@@ -1,18 +1,27 @@
 package main
 
 import (
-	"./core"
+	"errors"
 	"fmt"
+	gdClient "github.com/gitDashboard/client/v1"
+	"github.com/gitDashboard/gitHooks/core"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-var gdConfig *core.GDConfig
+var gdConfig *core.GDConf
 
-func commitOnBranch(refName, oldRev, newRev, gitDir string) error {
-
+func checkAuthorization(user, refName, oldRev, newRev, gitDir, operation string) error {
+	cl := &gdClient.GDClient{Url: gdConfig.Url}
+	granted, err := cl.CheckAuthorization(user, gitDir, refName, "commit")
+	if err != nil {
+		return err
+	}
+	if !granted {
+		return errors.New("Not authorized to " + operation + " on  " + refName)
+	}
 	return nil
 }
 
@@ -21,41 +30,41 @@ func main() {
 	oldRev := os.Args[2]
 	newRev := os.Args[3]
 	gitDir := os.Getenv("GIT_DIR")
-
+	remoteUser := os.Getenv("REMOTE_USER")
+	var err error
 	if len(gitDir) == 0 {
 		fmt.Println("Error GIT_DIR env not found")
 		os.Exit(1)
 	}
 	gitDir, _ = filepath.Abs(gitDir)
-	//understand newRevType
+	//understand operation
 	zero := "0000000000000000000000000000000000000000"
-	var newRevType string
+	var operation string
 
 	if newRev == zero {
-		newRevType = "delete"
+		operation = "delete"
 	} else {
-		newRevTypeOut, err := exec.Command("git", "cat-file", "-t", newRev).Output()
+		operationOut, err := exec.Command("git", "cat-file", "-t", newRev).Output()
 		if err != nil {
 			goto fatal
 		}
-		newRevType = strings.TrimSuffix(string(newRevTypeOut), "\n")
+		operation = strings.TrimSuffix(string(operationOut), "\n")
 	}
-	fmt.Printf("refname: %v, oldrev:%v, newrev:%v type:%v gitDir:%v\n", refName, oldRev, newRev, newRevType, gitDir)
-	gdConfig, err := core.ReadGDConf(gitDir + "/" + "gitDashboard.json")
+	fmt.Printf("refname: %v, oldrev:%v, newrev:%v type:%v gitDir:%v\n", refName, oldRev, newRev, operation, gitDir)
+	gdConfig, err = core.ReadGDConf(gitDir + "/" + "gitDashboard.json")
 	if err != nil {
 		goto fatal
 	}
-	switch {
-	case strings.HasPrefix(refName, "refs/heads/") && newRevType == "commit":
-		err := commitOnBranch(refName, oldRev, newRev, gitDir)
-		if err != nil {
-			goto fatal
-		}
-		break
+
+	err = checkAuthorization(remoteUser, refName, oldRev, newRev, gitDir, operation)
+	if err != nil {
+		goto fatal
+	} else {
+		os.Exit(0)
 	}
 fatal:
 	if err != nil {
-		fmt.Println("Fatal:", err.Error())
+		fmt.Println("Error:", err.Error())
 		os.Exit(1)
 	}
 	os.Exit(1)
