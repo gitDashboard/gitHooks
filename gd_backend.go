@@ -3,17 +3,18 @@ package main
 import (
 	"fmt"
 	gdClient "github.com/gitDashboard/client/v1"
-	"log"
+	/*	"log"*/
 	"os"
 	"os/exec"
 	"strings"
 )
 
 func main() {
-	logF, _ := os.OpenFile("/tmp/gd_backend.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
+
+	/*logF, _ := os.OpenFile("/tmp/gd_backend.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	lg := log.New(logF, "gd_backend", log.Ldate|log.Ltime)
 	lg.Println("Environ:", os.Environ())
-	lg.Println("Args:", os.Args)
+	lg.Println("Args:", os.Args)*/
 
 	gdUrl := os.Getenv("GIT_DASHBOARD_URL")
 	repoBaseDir := os.Getenv("GIT_PROJECT_ROOT")
@@ -28,9 +29,14 @@ func main() {
 		uploadPackUrlPos := strings.LastIndex(pathInfo, "/git-upload-pack")
 		if uploadPackUrlPos != -1 {
 			repoPath = repoBaseDir + pathInfo[0:uploadPackUrlPos]
+		} else {
+			receivePackUrlPos := strings.LastIndex(pathInfo, "/git-receive-pack")
+			if receivePackUrlPos != -1 {
+				repoPath = repoBaseDir + pathInfo[0:receivePackUrlPos]
+			}
 		}
 	}
-	lg.Println("Git repository path:", repoPath)
+	/*lg.Println("Git repository path:", repoPath)*/
 	gdCl := &gdClient.GDClient{Url: gdUrl}
 	authorized, _ := gdCl.CheckAuthorization(username, repoPath, "/", "read")
 	if !authorized {
@@ -42,9 +48,7 @@ func main() {
 		gitBackendCmd.Stdin = os.Stdin
 		gitBackendCmd.Stderr = os.Stderr
 		gitBackendCmd.Stdout = os.Stdout
-		lg.Println("Exec:" + gitHttpBackendPath)
-
 		gitBackendCmd.Run()
 	}
-	logF.Close()
+	/*logF.Close()*/
 }
