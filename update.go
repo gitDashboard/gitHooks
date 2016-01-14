@@ -15,12 +15,15 @@ var gdConfig *core.GDConf
 
 func checkAuthorization(user, refName, oldRev, newRev, gitDir, operation string) error {
 	cl := &gdClient.GDClient{Url: gdConfig.Url}
-	granted, err := cl.CheckAuthorization(user, gitDir, refName, "commit")
+	granted, locked, err := cl.CheckAuthorization(user, gitDir, refName, "commit")
 	if err != nil {
 		return err
 	}
 	if !granted {
 		return errors.New("Not authorized to " + operation + " on  " + refName)
+	}
+	if locked {
+		return errors.New("Repository locked, please contact the git administrator")
 	}
 	return nil
 }
@@ -50,7 +53,7 @@ func main() {
 		}
 		operation = strings.TrimSuffix(string(operationOut), "\n")
 	}
-	fmt.Printf("refname: %v, oldrev:%v, newrev:%v type:%v gitDir:%v\n", refName, oldRev, newRev, operation, gitDir)
+	//fmt.Printf("refname: %v, oldrev:%v, newrev:%v type:%v gitDir:%v\n", refName, oldRev, newRev, operation, gitDir)
 	gdConfig, err = core.ReadGDConf(gitDir + "/" + "gitDashboard.json")
 	if err != nil {
 		goto fatal
