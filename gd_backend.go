@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	gdClient "github.com/gitDashboard/client/v1"
-	/*	"log"*/
+	/*"log"*/
 	"os"
 	"os/exec"
 	"strings"
@@ -14,8 +14,8 @@ func main() {
 	/*logF, _ := os.OpenFile("/tmp/gd_backend.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0777)
 	lg := log.New(logF, "gd_backend", log.Ldate|log.Ltime)
 	lg.Println("Environ:", os.Environ())
-	lg.Println("Args:", os.Args)*/
-
+	lg.Println("Args:", os.Args)
+	*/
 	gdUrl := os.Getenv("GIT_DASHBOARD_URL")
 	repoBaseDir := os.Getenv("GIT_PROJECT_ROOT")
 	username := os.Getenv("REMOTE_USER")
@@ -38,10 +38,20 @@ func main() {
 	}
 	/*lg.Println("Git repository path:", repoPath)*/
 	gdCl := &gdClient.GDClient{Url: gdUrl}
-	authorized, _ := gdCl.CheckAuthorization(username, repoPath, "/", "read")
-	if !authorized {
+	authorized, locked, _ := gdCl.CheckAuthorization(username, repoPath, "/", "read")
+	eventId, err := gdCl.StartEvent(repoPath, "access", username, pathInfo)
+	//lg.Println("eventId", eventId)
+	if err != nil {
+		//lg.Println("Error:" + err.Error())
+		fmt.Println("Status:500\n")
+	}
+	defer gdCl.FinishEvent(eventId)
+	switch {
+	case !authorized:
 		fmt.Println("Status:403\n")
-	} else {
+	case locked:
+		fmt.Println("Status:503\n")
+	default:
 		//exec of git-http-backend
 		gitHttpBackendPath := os.Getenv("GIT_BACKEND")
 		gitBackendCmd := exec.Command(gitHttpBackendPath)

@@ -12,9 +12,9 @@ import (
 )
 
 var gdConfig *core.GDConf
+var cl *gdClient.GDClient
 
 func checkAuthorization(user, refName, oldRev, newRev, gitDir, operation string) error {
-	cl := &gdClient.GDClient{Url: gdConfig.Url}
 	granted, locked, err := cl.CheckAuthorization(user, gitDir, refName, "commit")
 	if err != nil {
 		return err
@@ -29,15 +29,20 @@ func checkAuthorization(user, refName, oldRev, newRev, gitDir, operation string)
 }
 
 func main() {
+	os.Exit(mainExec())
+}
+
+func mainExec() int {
 	refName := os.Args[1]
 	oldRev := os.Args[2]
 	newRev := os.Args[3]
 	gitDir := os.Getenv("GIT_DIR")
 	remoteUser := os.Getenv("REMOTE_USER")
 	var err error
+	var eventId uint
 	if len(gitDir) == 0 {
 		fmt.Println("Error GIT_DIR env not found")
-		os.Exit(1)
+		return 1
 	}
 	gitDir, _ = filepath.Abs(gitDir)
 	//understand operation
@@ -54,21 +59,30 @@ func main() {
 		operation = strings.TrimSuffix(string(operationOut), "\n")
 	}
 	//fmt.Printf("refname: %v, oldrev:%v, newrev:%v type:%v gitDir:%v\n", refName, oldRev, newRev, operation, gitDir)
+
 	gdConfig, err = core.ReadGDConf(gitDir + "/" + "gitDashboard.json")
 	if err != nil {
 		goto fatal
 	}
 
+	cl = &gdClient.GDClient{Url: gdConfig.Url}
+	eventId, err = cl.StartEvent(gitDir, operation, remoteUser, "ref:"+refName)
+	if err != nil {
+		goto fatal
+	}
+	defer cl.FinishEvent(eventId)
+
 	err = checkAuthorization(remoteUser, refName, oldRev, newRev, gitDir, operation)
 	if err != nil {
 		goto fatal
 	} else {
-		os.Exit(0)
+		return 0
 	}
 fatal:
 	if err != nil {
+		cl.AddEvent(gitDir, operation, remoteUser, "ref:"+refName+", Error:"+err.Error())
 		fmt.Println("Error:", err.Error())
-		os.Exit(1)
+		return 1
 	}
-	os.Exit(1)
+	return 1
 }
