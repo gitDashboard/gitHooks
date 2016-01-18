@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 	gdClient "github.com/gitDashboard/client/v1"
-	"github.com/gitDashboard/gitHooks/core"
+	"github.com/gitDashboard/client/v1/misc"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 )
 
-var gdConfig *core.GDConf
 var cl *gdClient.GDClient
 
 func checkAuthorization(user, refName, oldRev, newRev, gitDir, operation string) error {
@@ -40,11 +39,18 @@ func mainExec() int {
 	remoteUser := os.Getenv("REMOTE_USER")
 	var err error
 	var eventId uint
+	var gdUrl string
 	if len(gitDir) == 0 {
 		fmt.Println("Error GIT_DIR env not found")
 		return 1
 	}
 	gitDir, _ = filepath.Abs(gitDir)
+
+	gdUrl = os.Getenv("GIT_DASHBOARD_URL")
+	if gdUrl == "" {
+		fmt.Println("Error GIT_DASHBOARD_URL env not found")
+		return 1
+	}
 	//understand operation
 	zero := "0000000000000000000000000000000000000000"
 	var operation string
@@ -58,15 +64,9 @@ func mainExec() int {
 		}
 		operation = strings.TrimSuffix(string(operationOut), "\n")
 	}
-	//fmt.Printf("refname: %v, oldrev:%v, newrev:%v type:%v gitDir:%v\n", refName, oldRev, newRev, operation, gitDir)
 
-	gdConfig, err = core.ReadGDConf(gitDir + "/" + "gitDashboard.json")
-	if err != nil {
-		goto fatal
-	}
-
-	cl = &gdClient.GDClient{Url: gdConfig.Url}
-	eventId, err = cl.StartEvent(gitDir, operation, remoteUser, "ref:"+refName)
+	cl = &gdClient.GDClient{Url: gdUrl}
+	eventId, err = cl.StartEvent(gitDir, operation, remoteUser, refName, "", misc.EventLevel_INFO)
 	if err != nil {
 		goto fatal
 	}
@@ -80,7 +80,7 @@ func mainExec() int {
 	}
 fatal:
 	if err != nil {
-		cl.AddEvent(gitDir, operation, remoteUser, "ref:"+refName+", Error:"+err.Error())
+		cl.AddEvent(gitDir, operation, remoteUser, refName, "Error:"+err.Error(), misc.EventLevel_ERROR)
 		fmt.Println("Error:", err.Error())
 		return 1
 	}

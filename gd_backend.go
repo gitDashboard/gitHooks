@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	gdClient "github.com/gitDashboard/client/v1"
+	"github.com/gitDashboard/client/v1/misc"
 	/*"log"*/
 	"os"
 	"os/exec"
@@ -39,17 +40,20 @@ func main() {
 	/*lg.Println("Git repository path:", repoPath)*/
 	gdCl := &gdClient.GDClient{Url: gdUrl}
 	authorized, locked, _ := gdCl.CheckAuthorization(username, repoPath, "/", "read")
-	eventId, err := gdCl.StartEvent(repoPath, "access", username, pathInfo)
+	eventId, err := gdCl.StartEvent(repoPath, "access", username, "", pathInfo, misc.EventLevel_INFO)
 	//lg.Println("eventId", eventId)
 	if err != nil {
+		gdCl.AddEvent(repoPath, "access", username, "", err.Error(), misc.EventLevel_ERROR)
 		//lg.Println("Error:" + err.Error())
 		fmt.Println("Status:500\n")
 	}
 	defer gdCl.FinishEvent(eventId)
 	switch {
 	case !authorized:
+		gdCl.AddEvent(repoPath, "access", username, "", "Unatorized", misc.EventLevel_WARN)
 		fmt.Println("Status:403\n")
 	case locked:
+		gdCl.AddEvent(repoPath, "access", username, "", "Locked", misc.EventLevel_WARN)
 		fmt.Println("Status:503\n")
 	default:
 		//exec of git-http-backend
