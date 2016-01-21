@@ -36,6 +36,7 @@ func mainExec() int {
 	oldRev := os.Args[2]
 	newRev := os.Args[3]
 	gitDir := os.Getenv("GIT_DIR")
+	repoBaseDir := os.Getenv("GIT_PROJECT_ROOT")
 	remoteUser := os.Getenv("REMOTE_USER")
 	var err error
 	var eventId uint
@@ -45,6 +46,10 @@ func mainExec() int {
 		return 1
 	}
 	gitDir, _ = filepath.Abs(gitDir)
+	repoPath := strings.Replace(gitDir, repoBaseDir, "", 1)
+	if strings.HasPrefix(repoPath, "/") {
+		repoPath = repoPath[1:len(repoPath)]
+	}
 
 	gdUrl = os.Getenv("GIT_DASHBOARD_URL")
 	if gdUrl == "" {
@@ -66,13 +71,13 @@ func mainExec() int {
 	}
 
 	cl = &gdClient.GDClient{Url: gdUrl}
-	eventId, err = cl.StartEvent(gitDir, operation, remoteUser, refName, "", misc.EventLevel_INFO)
+	eventId, err = cl.StartEvent(repoPath, operation, remoteUser, refName, "", misc.EventLevel_INFO)
 	if err != nil {
 		goto fatal
 	}
 	defer cl.FinishEvent(eventId)
 
-	err = checkAuthorization(remoteUser, refName, oldRev, newRev, gitDir, operation)
+	err = checkAuthorization(remoteUser, refName, oldRev, newRev, repoPath, operation)
 	if err != nil {
 		goto fatal
 	} else {
@@ -80,7 +85,7 @@ func mainExec() int {
 	}
 fatal:
 	if err != nil {
-		cl.AddEvent(gitDir, operation, remoteUser, refName, "Error:"+err.Error(), misc.EventLevel_ERROR)
+		cl.AddEvent(repoPath, operation, remoteUser, refName, "Error:"+err.Error(), misc.EventLevel_ERROR)
 		fmt.Println("Error:", err.Error())
 		return 1
 	}
